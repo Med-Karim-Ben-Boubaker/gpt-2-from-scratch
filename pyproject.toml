@@ -21,5 +21,7 @@ dependencies = [
     "google-auth-stubs",
     "tqdm",
     "tensorboard",
-    "datasets"
+    "datasets",
+    "tokenizers",
+    "ollama",
 ]

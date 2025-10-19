@@ -1,0 +1,27 @@
+model:
+  vocab_size: 8000
+  context_length: 256
+  emb_dim: 384
+  n_heads: 6
+  n_layers: 6
+  drop_rate: 0.1
+  qkv_bias: false
+
+train:
+  batch_size: 32                    
+  lr: 0.002                       
+  weight_decay: 0.01              
+  num_epochs: 3
+  eval_freq: 1000
+  eval_iter: 50
+  grad_accum_steps: 2              # Effective batch size = 16
+  amp: true
+  device: cuda
+  seed: 123
+  num_workers: 0
+  warmup_steps: 200                # Much shorter warmup for fine-tuning
+  min_lr: 1.0e-6
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  fused: true
+  grad_clip_norm: 1.0

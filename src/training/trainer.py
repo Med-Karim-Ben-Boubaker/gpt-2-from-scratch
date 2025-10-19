@@ -10,10 +10,43 @@ from tqdm import tqdm
 from src.config import TrainConfig
 from src.training.evaluate import calc_loss_batch, calc_loss_loader, calc_masked_loss_batch, calc_masked_loss_loader
 from src.training.generate import generate
-from src.data.tokenizer import text_to_token_ids, get_tokenizer, token_ids_to_text
+from src.data.tokenizer import text_to_token_ids, token_ids_to_text
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def get_eos_token_id(tokenizer) -> int:
+    """Get the end-of-sequence token ID for different tokenizer types."""
+    try:
+        # For BPE tokenizers with vocab property
+        if hasattr(tokenizer, 'vocab'):
+            # Try to find EOS token in vocabulary
+            eos_tokens = ["<eot>", "<eos>", "</s>"]
+            for eos_token in eos_tokens:
+                if eos_token in tokenizer.vocab:
+                    return tokenizer.vocab[eos_token]
+            # If no EOS token found, return the last token ID
+            return max(tokenizer.vocab.values()) if tokenizer.vocab else 0
+        # For other tokenizers
+        elif hasattr(tokenizer, 'encode'):
+            # Try common EOS tokens
+            eos_tokens = ["<eot>", "<eos>", "</s>"]
+            for eos_token in eos_tokens:
+                try:
+                    encoded = tokenizer.encode(eos_token)
+                    if encoded:
+                        return encoded[0]
+                except Exception:
+                    continue
+            # Fallback to a reasonable default
+            return 0
+        else:
+            logger.warning("Unknown tokenizer type, using default EOS token ID 0")
+            return 0
+    except Exception as e:
+        logger.warning(f"Failed to get EOS token ID: {e}, using default 0")
+        return 0
 
 def train(
     model: torch.nn.Module,
@@ -21,6 +54,7 @@ def train(
     validation_loader: DataLoader,
     device: torch.device,
     training_config: TrainConfig,
+    tokenizer,
     on_step_callback: Optional[Callable[[int, float, int], None]] = None,
     writer: Optional[SummaryWriter] = None,
 ) -> Tuple[int, int, List[float], List[float], List[int], Optimizer]:
@@ -91,8 +125,7 @@ def train(
             f"Created scheduler: warmup_steps={training_config.warmup_steps}, total_steps={total_steps}"
         )
 
-    # Initialize tokenizer for inference during validation
-    tokenizer = get_tokenizer()
+    # Set inference prompt for text generation during validation
     inference_prompt = "A cat is sleeping on the sofa, the dog"
     context_length = getattr(model, "pos_emb", None)
     if context_length is not None:
@@ -157,7 +190,7 @@ def train(
                 if scheduler is not None:
                     scheduler.step()
 
-            batch_tokens = sum(seq.numel() for seq in input_list)
+            batch_tokens = sum(seq.numel() for seq in input_tokens)
             total_tokens_processed += batch_tokens
 
             # Track unscaled loss for correct averaging and epoch statistics
@@ -225,9 +258,7 @@ def train(
                         input_token_ids = text_to_token_ids(
                             inference_prompt, tokenizer
                         ).to(device)
-                        eos_token_id = tokenizer.encode(
-                            "<|endoftext|>", allowed_special={"<|endoftext|>"}
-                        )[0]
+                        eos_token_id = get_eos_token_id(tokenizer)
                         generated_token_ids, _ = generate(
                             model,
                             input_token_ids,
@@ -336,9 +367,7 @@ def train(
                         input_token_ids = text_to_token_ids(
                             inference_prompt, tokenizer
                         ).to(device)
-                        eos_token_id = tokenizer.encode(
-                            "<|endoftext|>", allowed_special={"<|endoftext|>"}
-                        )[0]
+                        eos_token_id = get_eos_token_id(tokenizer)
                         generated_token_ids, _ = generate(
                             model,
                             input_token_ids,
@@ -377,7 +406,7 @@ def train(
                 input_token_ids = text_to_token_ids(inference_prompt, tokenizer).to(
                     device
                 )
-                eos_token_id = tokenizer.encode("<|endoftext|>")[0]
+                eos_token_id = get_eos_token_id(tokenizer)
                 generated_token_ids, _ = generate(
                     model,
                     input_token_ids,
@@ -400,12 +429,7 @@ def train(
 
         model.train()
 
-        # Log final epoch metrics to TensorBoard
-        if writer is not None:
-            writer.add_scalar("Loss/Train_Epoch", average_epoch_loss, current_epoch)
-            writer.add_scalar(
-                "Loss/Validation_Epoch", final_validation_loss, current_epoch
-            )
+        # Note: Epoch-level metrics removed to keep TensorBoard clean
 
         # Update epoch progress bar with final epoch metrics
         epoch_pbar.set_postfix(
@@ -439,6 +463,7 @@ def train_instruction_finetuning(
     validation_loader: DataLoader,
     device: torch.device,
     training_config: TrainConfig,
+    tokenizer,
     on_step_callback: Optional[Callable[[int, float, int], None]] = None,
     writer: Optional[SummaryWriter] = None,
 ) -> Tuple[int, int, List[float], List[float], List[int], Optimizer]:
@@ -516,8 +541,7 @@ def train_instruction_finetuning(
             f"Created scheduler: warmup_steps={training_config.warmup_steps}, total_steps={total_steps}"
         )
 
-    # Initialize tokenizer for inference during validation
-    tokenizer = get_tokenizer()
+    # Set inference prompt for text generation during validation
     inference_prompt = "Instruction:\nWhat is the capital of France?\n\nResponse:\n"
     context_length = getattr(model, "pos_emb", None)
     if context_length is not None:
@@ -650,9 +674,7 @@ def train_instruction_finetuning(
                         input_token_ids = text_to_token_ids(
                             inference_prompt, tokenizer
                         ).to(device)
-                        eos_token_id = tokenizer.encode(
-                            "<|endoftext|>", allowed_special={"<|endoftext|>"}
-                        )[0]
+                        eos_token_id = get_eos_token_id(tokenizer)
                         generated_token_ids, _ = generate(
                             model,
                             input_token_ids,
@@ -761,9 +783,7 @@ def train_instruction_finetuning(
                         input_token_ids = text_to_token_ids(
                             inference_prompt, tokenizer
                         ).to(device)
-                        eos_token_id = tokenizer.encode(
-                            "<|endoftext|>", allowed_special={"<|endoftext|>"}
-                        )[0]
+                        eos_token_id = get_eos_token_id(tokenizer)
                         generated_token_ids, _ = generate(
                             model,
                             input_token_ids,
@@ -802,7 +822,7 @@ def train_instruction_finetuning(
                 input_token_ids = text_to_token_ids(inference_prompt, tokenizer).to(
                     device
                 )
-                eos_token_id = tokenizer.encode("<|endoftext|>")[0]
+                eos_token_id = get_eos_token_id(tokenizer)
                 generated_token_ids, _ = generate(
                     model,
                     input_token_ids,
@@ -825,12 +845,7 @@ def train_instruction_finetuning(
 
         model.train()
 
-        # Log final epoch metrics to TensorBoard
-        if writer is not None:
-            writer.add_scalar("Loss/Train_Epoch", average_epoch_loss, current_epoch)
-            writer.add_scalar(
-                "Loss/Validation_Epoch", final_validation_loss, current_epoch
-            )
+        # Note: Epoch-level metrics removed to keep TensorBoard clean
 
         # Update epoch progress bar with final epoch metrics
         epoch_pbar.set_postfix(

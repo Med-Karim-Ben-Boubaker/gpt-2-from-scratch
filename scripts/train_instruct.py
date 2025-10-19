@@ -15,6 +15,7 @@ from src.config import GPTConfig, TrainConfig
 from src.models.gpt import GPTModel
 from src.data.dataloader import create_instruction_dataloader
 from src.training.trainer import train_instruction_finetuning
+from src.data.tokenizer import get_bpe_tokenizer
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -66,19 +67,10 @@ def main():
     writer = SummaryWriter(log_dir=tensorboard_log_dir)
     logger.info(f"TensorBoard logging to: {tensorboard_log_dir}")
     
-    # Log hyperparameters to TensorBoard
+    # Log only essential hyperparameters to TensorBoard
     writer.add_hparams(
         {
             "learning_rate": tcfg.lr,
-            "batch_size": tcfg.batch_size,
-            "num_epochs": tcfg.num_epochs,
-            "grad_accum_steps": tcfg.grad_accum_steps,
-            "eval_freq": tcfg.eval_freq,
-            "context_length": gcfg.context_length,
-            "n_heads": gcfg.n_heads,
-            "n_layers": gcfg.n_layers,
-            "emb_dim": gcfg.emb_dim,
-            "training_type": "instruction_finetuning",
         },
         {}
     )
@@ -90,9 +82,24 @@ def main():
     examples = load_instruction_data(instruction_data_path, max_examples)
     train_examples, val_examples = split_instruction_data(examples)
 
-    # Create data loaders
+    # Create corpus from instruction data for tokenizer
+    corpus = "\n".join([
+        f"Instruction: {ex.get('instruction', '')}\nResponse: {ex.get('output', '')}"
+        for ex in examples
+    ])
+    
+    # Initialize BPE tokenizer once and share it across train/val/generation
+    tokenizer = get_bpe_tokenizer(
+        vocab_size=gcfg.vocab_size,
+        corpus=corpus,
+        force_retrain=False
+    )
+    logger.info(f"Using BPE tokenizer with vocab size: {tokenizer.vocab_size}")
+
+    # Create data loaders with shared tokenizer
     train_loader = create_instruction_dataloader(
         examples=train_examples,
+        tokenizer=tokenizer,
         batch_size=tcfg.batch_size,
         max_length=gcfg.context_length,
         shuffle=True,
@@ -102,6 +109,7 @@ def main():
     
     val_loader = create_instruction_dataloader(
         examples=val_examples,
+        tokenizer=tokenizer,
         batch_size=tcfg.batch_size,
         max_length=gcfg.context_length,
         shuffle=False,
@@ -127,7 +135,7 @@ def main():
 
     logger.info("Starting instruction fine-tuning...")
     _, _, train_loss, val_loss, step_numbers, optimizer = train_instruction_finetuning(
-        model, train_loader, val_loader, device, tcfg, writer=writer
+        model, train_loader, val_loader, device, tcfg, tokenizer, writer=writer
     )
 
     # Save fine-tuned model with _finetuned suffix

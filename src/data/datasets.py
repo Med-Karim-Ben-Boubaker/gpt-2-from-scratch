@@ -11,7 +11,7 @@ class GPTDatasetV1(Dataset):
     def __init__(self, text: str, tokenizer, max_length: int, stride: int):
         self.input_sequences, self.target_sequences = [], []
 
-        tokenized_text = tokenizer.encode(text, allowed_special={"<|endoftext|>"})
+        tokenized_text = tokenizer.encode(text)
 
         logger.info(
             f"Initializing GPTDatasetV1 with text length: {len(text)}, "
@@ -54,9 +54,9 @@ class InstructFineTuningDataset(Dataset):
         
         for example in examples:
             prompt = f"### Instruction:\n{example['instruction']}\n\n### Input:\n{example['input']}\n\n### Response:\n"
-            full_sequence = prompt + example["output"] + "<|endoftext|>"
-            prompt_tokens = tokenizer.encode(prompt, allowed_special={"<|endoftext|>"})
-            full_tokens = tokenizer.encode(full_sequence, allowed_special={"<|endoftext|>"})
+            full_sequence = prompt + example["output"] + "<eot>"
+            prompt_tokens = tokenizer.encode(prompt)
+            full_tokens = tokenizer.encode(full_sequence)
             
             if len(full_tokens) > max_length:
                 continue

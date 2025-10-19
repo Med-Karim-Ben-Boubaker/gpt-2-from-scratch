@@ -2,7 +2,8 @@ import json
 import torch
 import yaml
 from src.config import GPTConfig
-from src.data.tokenizer import text_to_token_ids, get_tokenizer, token_ids_to_text
+from src.data.tokenizer import text_to_token_ids, token_ids_to_text, get_bpe_tokenizer
+from src.training.trainer import get_eos_token_id
 from src.models.gpt import GPTModel
 from src.utils.logging import get_logger
 from src.training.generate import generate
@@ -14,8 +15,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
 
-    config_path = "configs/gpt_124m.yaml"
-    model_checkpoint_path = "artifacts/gpt2_35m_4heads_12layers_finetuned.pth"
+    config_path = "configs/gpt2_59m_10heads_10layers.yaml"
+    model_checkpoint_path = "artifacts/gpt2_59m_10heads_10layers.pth"
 
     with open(config_path) as f:
         raw = yaml.safe_load(f)
@@ -31,13 +32,12 @@ def main():
 
     logger.info("Model loaded successfully")
 
-    prompt = """### Instruction:\nHelp the user with any request they have.\n\n### Input: What is the capital of France?\n\n### Response:\n"""
+    prompt = """Computer science is the study of algorithms and computational processes."""
 
-    tokenizer = get_tokenizer()
-    input_token_ids = text_to_token_ids(prompt, tokenizer)
-    input_token_ids = input_token_ids.to(device)
+    tokenizer = get_bpe_tokenizer()
+    input_token_ids = text_to_token_ids(prompt, tokenizer).to(device)
 
-    eos_token_id = tokenizer.encode("<|endoftext|>", allowed_special={"<|endoftext|>"})[0]
+    eos_token_id = get_eos_token_id(tokenizer)
 
     max_new_tokens = 256
     logger.info("Starting generation...")
@@ -46,7 +46,7 @@ def main():
         input_token_ids, 
         max_new_tokens, 
         gpt_config.context_length,
-        temperature=0.0,
+        temperature=0.8,
         top_p=0.95,
         top_k=0,
         repetition_penalty=1.15,
