@@ -1,0 +1,8 @@
+model:
+  vocab_size: 50257
+  context_length: 512
+  emb_dim: 256
+  n_heads: 4
+  n_layers: 12
+  drop_rate: 0.1
+  qkv_bias: false

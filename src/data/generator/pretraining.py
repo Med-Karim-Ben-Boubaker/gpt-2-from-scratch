@@ -4,15 +4,28 @@ from typing import Dict, List, Optional
 import ollama
 from tqdm import tqdm
 
+from pathlib import Path
+
 from src.utils.logging import get_logger
-from src.data.tokenizer import get_tokenizer
+from src.data.tokenizers.bpe_tokenizer import BPETokenizer
 
 MODEL_NAME = "gemma3:1b-it-qat"
 OUTPUT_PATH = "data/synthetic-data/pretraining-data.txt"
 TOPICS_CONFIG_PATH = "configs/data_gen_pretraining_topics.json"
+TOKENIZER_PATH = "artifacts/tokenizers/bpe_tokenizer.json"
 
 logger = get_logger(__name__)
-tokenizer = get_tokenizer()
+
+# Load tokenizer from saved file
+tokenizer_path = Path(TOKENIZER_PATH)
+if tokenizer_path.exists():
+    tokenizer = BPETokenizer.from_file(tokenizer_path)
+    logger.info(f"Loaded tokenizer from {tokenizer_path} with vocab size: {tokenizer.vocab_size}")
+else:
+    raise FileNotFoundError(
+        f"Tokenizer not found at {tokenizer_path}. "
+        "Please train and save a tokenizer first."
+    )
 
 def load_topics() -> List[Dict[str, str]]:
     with open(TOPICS_CONFIG_PATH, 'r', encoding='utf-8') as f:

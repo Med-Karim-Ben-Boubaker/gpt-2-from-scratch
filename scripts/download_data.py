@@ -4,9 +4,9 @@ import os
 
 logger = get_logger(__name__)
 
-DATASET_NAME = "HuggingFaceFW/fineweb"
-NUM_SAMPLES = 1000000
-OUTPUT_FILE = "data/fineweb.txt"
+DATASET_NAME = "roneneldan/TinyStories"
+NUM_SAMPLES = 200000
+OUTPUT_FILE = "data/tinystories.txt"
 
 logger.info(f"Loading {NUM_SAMPLES} samples from {DATASET_NAME}...")
 
@@ -18,8 +18,8 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
     for i, sample in enumerate(dataset):
         if i >= NUM_SAMPLES:
             break
-        f.write(sample['text'] + ' <|endoftext|>' +'\n\n')
-        if (i + 1) % 100 == 0:
+        f.write(sample['text'] + ' <eot>' +'\n\n')
+        if (i + 1) % 100000 == 0:
             logger.info(f"Processed {i + 1}/{NUM_SAMPLES} samples...")
 
 logger.info(f"✅ Saved {NUM_SAMPLES} samples to {OUTPUT_FILE}")

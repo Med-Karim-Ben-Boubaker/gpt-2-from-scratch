@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from src.models.layers import TransformerBlock, LayerNorm
+from src.models.gpt.layers import TransformerBlock, LayerNorm
 
 class GPTModel(nn.Module):
   def __init__(self, cfg):
@@ -14,6 +14,8 @@ class GPTModel(nn.Module):
     ])
     self.final_norm = LayerNorm(cfg.emb_dim)
     self.out_head = nn.Linear(cfg.emb_dim, cfg.vocab_size, bias=False)
+    # Share the weights of the output head with the token embedding layer
+    self.out_head.weight = self.tok_emb.weight
 
   def forward(self, in_idx):
     b, t = in_idx.shape
@@ -22,3 +24,18 @@ class GPTModel(nn.Module):
     x = self.trf_blocks(x)
     x = self.final_norm(x)
     return self.out_head(x)
+  
+# Small Test
+if __name__ == "__main__":
+  from src.config import GPTConfig
+  cfg = GPTConfig(
+    vocab_size=8000,
+    context_length=512,
+    emb_dim=384,
+    n_heads=6,
+    n_layers=18,
+    drop_rate=0.1,
+    qkv_bias=False,
+  )
+  model = GPTModel(cfg)
+  print(f"Total number of parameters: {sum(p.numel() for p in model.parameters())}")
