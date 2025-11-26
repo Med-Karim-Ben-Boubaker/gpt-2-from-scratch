@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import yaml
 
@@ -73,6 +73,10 @@ class TrainConfig:
   eps: float = 1e-8
   fused: bool = True
   grad_clip_norm: float = 1.0
+  # Checkpointing configuration
+  training_id: Optional[str] = None
+  checkpoint_cadence: int = 1000
+  max_checkpoints: int = 5
 
   @classmethod
   def from_yaml(cls, config_name: Union[str, Path] = _DEFAULT_CONFIG_NAME) -> "TrainConfig":
